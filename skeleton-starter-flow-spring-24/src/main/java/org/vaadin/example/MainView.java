@@ -1,60 +1,115 @@
 package org.vaadin.example;
 
-import com.vaadin.flow.component.Key;
+import java.util.List;
+
 import com.vaadin.flow.component.button.Button;
-import com.vaadin.flow.component.button.ButtonVariant;
-import com.vaadin.flow.component.html.Paragraph;
+import com.vaadin.flow.component.grid.Grid;
+import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.textfield.NumberField;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.Route;
-import org.springframework.beans.factory.annotation.Autowired;
 
-/**
- * A sample Vaadin view class.
- * <p>
- * To implement a Vaadin view just extend any Vaadin component and use @Route
- * annotation to announce it in a URL as a Spring managed bean.
- * <p>
- * A new instance of this class is created for every new user and every browser
- * tab/window.
- * <p>
- * The main view contains a text field for getting the user name and a button
- * that shows a greeting message in a notification.
- */
-@Route
+@Route("")
 public class MainView extends VerticalLayout {
+    private final DataService dataService;
+    private final Grid<Clothe> grid;
+    private final TextField typeField;
+    private final NumberField priceField;
+    private final TextField sizeField;
+    private final NumberField availabilityField;
 
-    /**
-     * Construct a new Vaadin view.
-     * <p>
-     * Build the initial UI state for the user accessing the application.
-     *
-     * @param service
-     *            The message service. Automatically injected Spring managed bean.
-     */
-    public MainView(@Autowired GreetService service) {
+    public MainView() {
+        this.dataService = new DataService();
+        this.grid = new Grid<>(Clothe.class);
 
-        // Use TextField for standard text input
-        TextField textField = new TextField("Your name");
-        textField.addClassName("bordered");
+        this.typeField = new TextField("Type");
+        this.priceField = new NumberField("Price");
+        this.sizeField = new TextField("Size");
+        this.availabilityField = new NumberField("Availability");
 
-        // Button click listeners can be defined as lambda expressions
-        Button button = new Button("Say hello", e -> {
-            add(new Paragraph(service.greet(textField.getValue())));
+        setupGrid();
+        setupForm();
+
+        add(grid, new HorizontalLayout(typeField, priceField, sizeField, availabilityField, createAddButton()));
+    }
+
+    private void setupGrid() {
+        grid.setColumns("id", "type", "price", "size", "availability");
+        grid.setItems(fetchClothes());
+
+        grid.addComponentColumn(item -> {
+            Button resetCsvButton = new Button("Reset CSV", event -> resetCsv());
+            Button exportPdfButton = new Button("Export PDF", event -> exportToPdf());
+            return new HorizontalLayout(resetCsvButton, exportPdfButton);
         });
 
-        // Theme variants give you predefined extra styles for components.
-        // Example: Primary button has a more prominent look.
-        button.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        grid.addItemClickListener(event -> {
+            Clothe clothe = event.getItem();
+            typeField.setValue(clothe.getType());
+            priceField.setValue(clothe.getPrice());
+            sizeField.setValue(clothe.getSize());
+            availabilityField.setValue((double) clothe.getAvailability());
+        });
+    }
 
-        // You can specify keyboard shortcuts for buttons.
-        // Example: Pressing enter in this view clicks the Button.
-        button.addClickShortcut(Key.ENTER);
+    private void setupForm() {
+        add(new Div(new Button("Update", e -> updateClothe())));
+        add(new Div(new Button("Delete", e -> deleteClothe())));
+    }
 
-        // Use custom CSS classes to apply styling. This is defined in
-        // styles.css.
-        addClassName("centered-content");
+    private List<Clothe> fetchClothes() {
+        return dataService.getAllClothes();
+    }
 
-        add(textField, button);
+    private void updateClothe() {
+        Clothe selected = grid.asSingleSelect().getValue();
+        if (selected != null) {
+            selected.setType(typeField.getValue());
+            selected.setPrice(priceField.getValue());
+            selected.setSize(sizeField.getValue());
+            selected.setAvailability(availabilityField.getValue().intValue());
+            dataService.updateClothe(selected);
+            refreshGrid();
+            Notification.show("Clothe updated!");
+        }
+    }
+
+    private void deleteClothe() {
+        Clothe selected = grid.asSingleSelect().getValue();
+        if (selected != null) {
+            dataService.deleteClothe(selected.getId());
+            refreshGrid();
+            Notification.show("Clothe deleted!");
+        }
+    }
+
+    private void resetCsv() {
+        dataService.resetCsv();
+        Notification.show("CSV reset successfully!");
+    }
+
+    private void exportToPdf() {
+        dataService.exportToPdf();
+        Notification.show("PDF exported successfully!");
+    }
+
+    private void refreshGrid() {
+        grid.setItems(fetchClothes());
+    }
+
+    private Button createAddButton() {
+        return new Button("Add Clothe", event -> {
+            Clothe clothe = new Clothe();
+            clothe.setType(typeField.getValue());
+            clothe.setPrice(priceField.getValue());
+            clothe.setSize(sizeField.getValue());
+            clothe.setAvailability(availabilityField.getValue().intValue());
+            dataService.addClothe(clothe);
+            refreshGrid();
+            Notification.show("Clothe added!");
+        });
     }
 }
